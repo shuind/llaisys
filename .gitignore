@@ -1,3 +1,5 @@
+models/
+
 # Xmake cache
 .xmake/
 build/
@@ -30,6 +32,7 @@ cache/
 
 #GGUF
 *.gguf
+
 
 
 # Byte-compiled / optimized / DLL files

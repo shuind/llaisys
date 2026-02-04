@@ -59,13 +59,17 @@ class Qwen2:
         tensor = torch_tensor.contiguous()
         LIB_LLAISYS.tensorLoad(handle, c_void_p(tensor.data_ptr()))
 
+    def _load_tensor_transposed(self, handle, torch_tensor):
+        tensor = torch_tensor.t().contiguous()
+        LIB_LLAISYS.tensorLoad(handle, c_void_p(tensor.data_ptr()))
+
     def _load_by_name(self, name, torch_tensor):
         w = self._weights
         if name == "model.embed_tokens.weight":
             self._load_tensor(w.in_embed, torch_tensor)
             return True
         if name == "lm_head.weight":
-            self._load_tensor(w.out_embed, torch_tensor)
+            self._load_tensor_transposed(w.out_embed, torch_tensor)
             return True
         if name == "model.norm.weight":
             self._load_tensor(w.out_norm_w, torch_tensor)
@@ -82,25 +86,25 @@ class Qwen2:
         elif sub == "post_attention_layernorm.weight":
             self._load_tensor(w.mlp_norm_w[layer], torch_tensor)
         elif sub == "self_attn.q_proj.weight":
-            self._load_tensor(w.attn_q_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.attn_q_w[layer], torch_tensor)
         elif sub == "self_attn.q_proj.bias":
             self._load_tensor(w.attn_q_b[layer], torch_tensor)
         elif sub == "self_attn.k_proj.weight":
-            self._load_tensor(w.attn_k_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.attn_k_w[layer], torch_tensor)
         elif sub == "self_attn.k_proj.bias":
             self._load_tensor(w.attn_k_b[layer], torch_tensor)
         elif sub == "self_attn.v_proj.weight":
-            self._load_tensor(w.attn_v_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.attn_v_w[layer], torch_tensor)
         elif sub == "self_attn.v_proj.bias":
             self._load_tensor(w.attn_v_b[layer], torch_tensor)
         elif sub == "self_attn.o_proj.weight":
-            self._load_tensor(w.attn_o_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.attn_o_w[layer], torch_tensor)
         elif sub == "mlp.gate_proj.weight":
-            self._load_tensor(w.mlp_gate_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.mlp_gate_w[layer], torch_tensor)
         elif sub == "mlp.up_proj.weight":
-            self._load_tensor(w.mlp_up_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.mlp_up_w[layer], torch_tensor)
         elif sub == "mlp.down_proj.weight":
-            self._load_tensor(w.mlp_down_w[layer], torch_tensor)
+            self._load_tensor_transposed(w.mlp_down_w[layer], torch_tensor)
         else:
             return False
         return True

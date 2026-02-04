@@ -22,22 +22,27 @@ void self_attention_(T *attn_val,
 
     std::vector<float> out_acc(D);
 
+    // head                    
     for (size_t h = 0; h < H; h++) {
         const size_t kvh = h / head_repeat;
 
+        // token
         for (size_t i = 0; i < L; i++) {
             const size_t max_j = std::min(i + mask_offset, S - 1);
 
             const T *q_vec = q + (i * H + h) * D;
             T *out_vec = attn_val + (i * H + h) * D;
 
-            float m = -std::numeric_limits<float>::infinity(); // running max
-            float l = 0.0f;                                    // running denom (sum exp)
-            std::fill(out_acc.begin(), out_acc.end(), 0.0f);   // running numerator vector
+            // softmax init
+            float m = -std::numeric_limits<float>::infinity(); 
+            float l = 0.0f;                                    
+            std::fill(out_acc.begin(), out_acc.end(), 0.0f);   
 
+            // key
             for (size_t j = 0; j <= max_j; j++) {
                 const T *k_vec = k + (j * HKV + kvh) * D;
 
+                // QK
                 float dot = 0.0f;
                 for (size_t d = 0; d < D; d++) {
                     dot += llaisys::utils::cast<float>(q_vec[d]) *
@@ -47,9 +52,10 @@ void self_attention_(T *attn_val,
 
                 const T *v_vec = v + (j * HKV + kvh) * D;
 
+                // softmax + V
                 if (s > m) {
-                    const float factor = std::exp(m - s); // in (0,1]
-                    // out_acc *= factor
+                    const float factor = std::exp(m - s); 
+                    
                     for (size_t d = 0; d < D; d++) {
                         out_acc[d] *= factor;
                     }
@@ -68,7 +74,8 @@ void self_attention_(T *attn_val,
                     }
                 }
             }
-
+            
+            // normalize
             const float inv_l = 1.0f / l;
             for (size_t d = 0; d < D; d++) {
                 out_vec[d] = llaisys::utils::cast<T>(out_acc[d] * inv_l);

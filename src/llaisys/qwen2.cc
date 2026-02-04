@@ -86,7 +86,7 @@ __C {
         size_t voc = meta->voc;
 
         model->weights.in_embed = make_tensor({voc, hs}, meta->dtype, device, model->device_id);
-        model->weights.out_embed = make_tensor({voc, hs}, meta->dtype, device, model->device_id);
+        model->weights.out_embed = make_tensor({hs, voc}, meta->dtype, device, model->device_id);
         model->weights.out_norm_w = make_tensor({hs}, meta->dtype, device, model->device_id);
 
         model->weights.attn_norm_w = new llaisysTensor_t[nlayer];
@@ -107,15 +107,15 @@ __C {
             model->weights.attn_norm_w[i] = make_tensor({hs}, meta->dtype, device, model->device_id);
             model->weights.attn_q_w[i] = make_tensor({hs, hs}, meta->dtype, device, model->device_id);
             model->weights.attn_q_b[i] = make_tensor({hs}, meta->dtype, device, model->device_id);
-            model->weights.attn_k_w[i] = make_tensor({kv_out, hs}, meta->dtype, device, model->device_id);
+            model->weights.attn_k_w[i] = make_tensor({hs, kv_out}, meta->dtype, device, model->device_id);
             model->weights.attn_k_b[i] = make_tensor({kv_out}, meta->dtype, device, model->device_id);
-            model->weights.attn_v_w[i] = make_tensor({kv_out, hs}, meta->dtype, device, model->device_id);
+            model->weights.attn_v_w[i] = make_tensor({hs, kv_out}, meta->dtype, device, model->device_id);
             model->weights.attn_v_b[i] = make_tensor({kv_out}, meta->dtype, device, model->device_id);
             model->weights.attn_o_w[i] = make_tensor({hs, hs}, meta->dtype, device, model->device_id);
             model->weights.mlp_norm_w[i] = make_tensor({hs}, meta->dtype, device, model->device_id);
-            model->weights.mlp_gate_w[i] = make_tensor({di, hs}, meta->dtype, device, model->device_id);
-            model->weights.mlp_up_w[i] = make_tensor({di, hs}, meta->dtype, device, model->device_id);
-            model->weights.mlp_down_w[i] = make_tensor({hs, di}, meta->dtype, device, model->device_id);
+            model->weights.mlp_gate_w[i] = make_tensor({hs, di}, meta->dtype, device, model->device_id);
+            model->weights.mlp_up_w[i] = make_tensor({hs, di}, meta->dtype, device, model->device_id);
+            model->weights.mlp_down_w[i] = make_tensor({di, hs}, meta->dtype, device, model->device_id);
         }
 
         model->kcache.resize(nlayer);
@@ -218,12 +218,12 @@ __C {
             auto q2d = llaisys::Tensor::create({L, hs}, meta.dtype, model->device, model->device_id);
             auto k2d = llaisys::Tensor::create({L, HKV * D}, meta.dtype, model->device, model->device_id);
             auto v2d = llaisys::Tensor::create({L, HKV * D}, meta.dtype, model->device, model->device_id);
-            llaisys::ops::linear(q2d, norm1, unwrap(model->weights.attn_q_w[layer]),
-                                 unwrap(model->weights.attn_q_b[layer]));
-            llaisys::ops::linear(k2d, norm1, unwrap(model->weights.attn_k_w[layer]),
-                                 unwrap(model->weights.attn_k_b[layer]));
-            llaisys::ops::linear(v2d, norm1, unwrap(model->weights.attn_v_w[layer]),
-                                 unwrap(model->weights.attn_v_b[layer]));
+            llaisys::ops::linear_transposed(q2d, norm1, unwrap(model->weights.attn_q_w[layer]),
+                                            unwrap(model->weights.attn_q_b[layer]));
+            llaisys::ops::linear_transposed(k2d, norm1, unwrap(model->weights.attn_k_w[layer]),
+                                            unwrap(model->weights.attn_k_b[layer]));
+            llaisys::ops::linear_transposed(v2d, norm1, unwrap(model->weights.attn_v_w[layer]),
+                                            unwrap(model->weights.attn_v_b[layer]));
 
             auto q = q2d->view({L, H, D});
             auto k = k2d->view({L, HKV, D});
@@ -248,7 +248,7 @@ __C {
 
             auto attn_val2d = attn_val->view({L, hs});
             auto attn_out = llaisys::Tensor::create({L, hs}, meta.dtype, model->device, model->device_id);
-            llaisys::ops::linear(attn_out, attn_val2d, unwrap(model->weights.attn_o_w[layer]), nullptr);
+            llaisys::ops::linear_transposed(attn_out, attn_val2d, unwrap(model->weights.attn_o_w[layer]), nullptr);
 
             auto attn_res = llaisys::Tensor::create({L, hs}, meta.dtype, model->device, model->device_id);
             llaisys::ops::add(attn_res, x, attn_out);
@@ -258,14 +258,14 @@ __C {
 
             auto gate = llaisys::Tensor::create({L, di}, meta.dtype, model->device, model->device_id);
             auto up = llaisys::Tensor::create({L, di}, meta.dtype, model->device, model->device_id);
-            llaisys::ops::linear(gate, norm2, unwrap(model->weights.mlp_gate_w[layer]), nullptr);
-            llaisys::ops::linear(up, norm2, unwrap(model->weights.mlp_up_w[layer]), nullptr);
+            llaisys::ops::linear_transposed(gate, norm2, unwrap(model->weights.mlp_gate_w[layer]), nullptr);
+            llaisys::ops::linear_transposed(up, norm2, unwrap(model->weights.mlp_up_w[layer]), nullptr);
 
             auto swiglu_out = llaisys::Tensor::create({L, di}, meta.dtype, model->device, model->device_id);
             llaisys::ops::swiglu(swiglu_out, gate, up);
 
             auto mlp_out = llaisys::Tensor::create({L, hs}, meta.dtype, model->device, model->device_id);
-            llaisys::ops::linear(mlp_out, swiglu_out, unwrap(model->weights.mlp_down_w[layer]), nullptr);
+            llaisys::ops::linear_transposed(mlp_out, swiglu_out, unwrap(model->weights.mlp_down_w[layer]), nullptr);
 
             auto mlp_res = llaisys::Tensor::create({L, hs}, meta.dtype, model->device, model->device_id);
             llaisys::ops::add(mlp_res, attn_res, mlp_out);
@@ -280,7 +280,7 @@ __C {
 
         auto last = out_norm->slice(0, L - 1, L);
         auto logits = llaisys::Tensor::create({1, voc}, meta.dtype, model->device, model->device_id);
-        llaisys::ops::linear(logits, last, unwrap(model->weights.out_embed), nullptr);
+        llaisys::ops::linear_transposed(logits, last, unwrap(model->weights.out_embed), nullptr);
 
         auto logits_1d = logits->view({voc});
         auto max_idx = llaisys::Tensor::create({1}, LLAISYS_DTYPE_I64, model->device, model->device_id);

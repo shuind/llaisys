@@ -79,7 +79,6 @@ __C {
 
         size_t nlayer = meta->nlayer;
         size_t hs = meta->hs;
-        size_t nh = meta->nh;
         size_t nkvh = meta->nkvh;
         size_t dh = meta->dh;
         size_t di = meta->di;
